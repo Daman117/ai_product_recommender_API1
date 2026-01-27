@@ -32,7 +32,7 @@ from auth_models import db, User, Log
 from auth_utils import hash_password, check_password
 
 # --- MongoDB Project Management ---
-from mongo_project_manager import mongo_project_manager
+from cosmos_project_manager import cosmos_project_manager
 
 # --- LLM CHAINING IMPORTS ---
 from langchain_core.prompts import ChatPromptTemplate
@@ -47,9 +47,8 @@ from flask_session import Session
 # Import latest advanced specifications functionality
 from advanced_parameters import discover_advanced_parameters
 
-# Import Azure Blob utilities (MongoDB API compatible)
-from azure_blob_utils import get_schema_from_mongodb, get_json_from_mongodb, MongoDBFileManager, mongodb_file_manager
-from azure_blob_config import get_azure_blob_connection as get_mongodb_connection
+from azure_blob_utils import azure_blob_file_manager
+
 
 # Import Swagger/Flasgger for API documentation
 from flasgger import Swagger, swag_from
@@ -115,12 +114,6 @@ swagger_config = {
     "swagger_ui": True,
     "specs_route": "/apidocs/"
 }
-from mongodb_projects import (
-    save_project_to_mongodb,
-    get_user_projects_from_mongodb,
-    get_project_details_from_mongodb,
-    delete_project_from_mongodb
-)
 
 # Load environment variables
 load_dotenv()
