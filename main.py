@@ -18,9 +18,7 @@ from fuzzywuzzy import fuzz, process
 
 from functools import wraps
 from dotenv import load_dotenv
-
-# Load environment variables immediately
-load_dotenv()
+from redis import Redis
 
 # Suppress noisy Azure SDK logs
 logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
@@ -33,15 +31,15 @@ from googleapiclient.discovery import build
 from auth_models import db, User, Log
 from auth_utils import hash_password, check_password
 
-# --- Cosmos DB Project Management ---
-from cosmos_project_manager import cosmos_project_manager
+# --- MongoDB Project Management ---
+from mongo_project_manager import mongo_project_manager
 
 # --- LLM CHAINING IMPORTS ---
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from chaining import setup_langchain_components, create_analysis_chain
-import prompts  # Using compatibility shim (prompts.py) - TODO: Refactor to use sales_agent_tools.py
+import prompts
 from loading import load_requirements_schema, build_requirements_schema_from_web
 from flask import Flask, session
 from flask_session import Session
@@ -50,8 +48,8 @@ from flask_session import Session
 from advanced_parameters import discover_advanced_parameters
 
 # Import Azure Blob utilities (MongoDB API compatible)
-# Import Azure Blob utilities
-from azure_blob_utils import azure_blob_file_manager
+from azure_blob_utils import get_schema_from_mongodb, get_json_from_mongodb, MongoDBFileManager, mongodb_file_manager
+from azure_blob_config import get_azure_blob_connection as get_mongodb_connection
 
 # Import Swagger/Flasgger for API documentation
 from flasgger import Swagger, swag_from
@@ -117,8 +115,12 @@ swagger_config = {
     "swagger_ui": True,
     "specs_route": "/apidocs/"
 }
-# MongoDB Project Management imports removed
-
+from mongodb_projects import (
+    save_project_to_mongodb,
+    get_user_projects_from_mongodb,
+    get_project_details_from_mongodb,
+    delete_project_from_mongodb
+)
 
 # Load environment variables
 load_dotenv()
@@ -127,6 +129,7 @@ load_dotenv()
 # === FLASK APP CONFIGURATION ===
 # =========================================================================
 app = Flask(__name__, static_folder="static")
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret")
 
 # Manual CORS handling
 
@@ -134,7 +137,7 @@ app = Flask(__name__, static_folder="static")
 allowed_origins = [
     "https://ai-product-recommender-ui.vercel.app",  # Your production frontend
     "https://en-genie.vercel.app",                   # Your new frontend domain
-    "https://en-genie1.vercel.app",                  # Your deployed frontend
+    "https://en-genie1.vercel.app",                  # Your updated frontend domain
     "http://localhost:8080",                         # Add your specific local dev port
     "http://localhost:5173",
     "http://localhost:3000"
@@ -156,26 +159,90 @@ CORS(app, origins=allowed_origins, supports_credentials=True)
 logging.basicConfig(level=logging.INFO)
 logging.basicConfig(level=logging.INFO)
 
+# Check if Redis is available and properly configured
+def is_redis_available():
+    """Check if Redis environment variables are properly configured."""
+    # Check for standard or Railway-specific environment variables
+    redis_host = os.getenv("REDIS_HOST") or os.getenv("REDISHOST")
+    redis_port = os.getenv("REDIS_PORT") or os.getenv("REDISPORT")
+    return redis_host is not None and redis_port is not None
+
+# Define Redis session initialization function
+def init_redis_sessions(app):
+    """Initialize Redis-backed sessions."""
+    try:
+        # Get connection details (supporting both standard and Railway naming)
+        redis_host = os.getenv("REDIS_HOST") or os.getenv("REDISHOST")
+        redis_port = int(os.getenv("REDIS_PORT") or os.getenv("REDISPORT") or "6379")
+        redis_password = os.getenv("REDIS_PASSWORD") or os.getenv("REDISPASSWORD") or ""
+        
+        app.config["SESSION_TYPE"] = "redis"
+        app.config["SESSION_PERMANENT"] = True
+        app.config["SESSION_USE_SIGNER"] = True
+        app.config["SESSION_REDIS"] = Redis(
+            host=redis_host,
+            port=redis_port,
+            password=redis_password,
+            # decode_responses MUST be False for Flask-Session because it stores pickled binary data
+            decode_responses=False,
+            socket_timeout=5,
+            retry_on_timeout=True
+        )
+        logging.info(f"Redis session storage initialized successfully (Host: {redis_host})")
+        return True
+    except Exception as e:
+        logging.warning(f"Failed to initialize Redis sessions: {e}")
+        return False
+
+# Define filesystem session initialization function  
+def init_filesystem_sessions(app):
+    """Initialize filesystem-backed sessions as fallback."""
+    app.config["SESSION_TYPE"] = "filesystem"
+    app.config["SESSION_PERMANENT"] = False
+    logging.info("Filesystem session storage initialized")
+
+# Configure session based on environment
 if os.getenv('FLASK_ENV') == 'production' or os.getenv('RAILWAY_ENVIRONMENT'):
     # Production session settings
-    app.config["SESSION_PERMANENT"] = True
-    app.config["SESSION_TYPE"] = "filesystem"
-    app.config["SESSION_FILE_DIR"] = "/app/flask_session"
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "None"
+    
+    # Try Redis first, fall back to filesystem if not available
+    if is_redis_available():
+        if not init_redis_sessions(app):
+            logging.warning("Redis initialization failed, falling back to filesystem sessions")
+            init_filesystem_sessions(app)
+    else:
+        logging.warning("Redis not configured (REDIS_HOST/REDIS_PORT missing), using filesystem sessions")
+        init_filesystem_sessions(app)
 else:
-    # Development session settings
-    app.config["SESSION_PERMANENT"] = False
-    app.config["SESSION_TYPE"] = "filesystem" 
+    # Development session settings - use filesystem
+    init_filesystem_sessions(app)
 
-# Use absolute path for database to ensure it's created in the persisted 'instance' directory
-# mirroring the docker volume mount: - backend-instance:/app/instance
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'users.db')
+# MySQL configuration function
+def get_mysql_uri():
+    return (
+        f"mysql+pymysql://{os.getenv('MYSQLUSER')}:"
+        f"{os.getenv('MYSQLPASSWORD')}@"
+        f"{os.getenv('MYSQLHOST')}:"
+        f"{os.getenv('MYSQLPORT')}/"
+        f"{os.getenv('MYSQLDATABASE')}"
+    )
+
+# Database configuration
+app.config["SQLALCHEMY_DATABASE_URI"] = get_mysql_uri()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = os.getenv('SECRET_KEY', 'fallback-secret-key-for-development')
-Session(app)
+
+# Initialize database and session (SESSION_TYPE is now properly set)
 db.init_app(app)
+
+# Note: Database tables (User, Log) are created by create_db() at end of file.
+# This operation is SAFE: it only creates tables if they don't exist.
+# Existing tables and data are preserved across redeploys.
+
+Session(app)
 
 # Initialize Swagger/Flasgger for API documentation
 swagger = Swagger(app, template=swagger_template, config=swagger_config)
@@ -5952,7 +6019,6 @@ def delete_project(project_id):
         logging.exception(f"Failed to delete project {project_id}.")
         return jsonify({"error": "Failed to delete project: " + str(e)}), 500
 
-
 def create_db():
     with app.app_context():
         db.create_all()
@@ -5970,8 +6036,11 @@ def create_db():
             db.session.add(admin)
             db.session.commit()
             print("Admin user created with username 'Daman' and password 'Daman@123'.")
+
+# Create database tables on startup (works with both Gunicorn and direct run)
+create_db()
+
 if __name__ == "__main__":
-    create_db()
     import os
 
     # Initialize automatic checkpoint cleanup (Phase 1 improvement)
