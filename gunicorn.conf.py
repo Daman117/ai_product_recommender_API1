@@ -19,8 +19,11 @@ import logging
 # Server Socket Configuration
 # =============================================================================
 
-# Bind to all interfaces on port 5000 (override with GUNICORN_BIND env var)
-bind = os.getenv("GUNICORN_BIND", "0.0.0.0:5000")
+# Bind to all interfaces on port (override with GUNICORN_BIND env var)
+# Railway and other PaaS providers provide PORT env var
+_port = os.getenv("PORT", "5000")
+_default_bind = f"0.0.0.0:{_port}"
+bind = os.getenv("GUNICORN_BIND", _default_bind)
 
 # Backlog - maximum number of pending connections
 backlog = 2048

@@ -50,7 +50,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_ENV=production \
     FLASK_APP=main.py \
     # Gunicorn settings
-    GUNICORN_BIND=0.0.0.0:5000 \
+    # GUNICORN_BIND removed to allow PORT env var precedence in gunicorn.conf.py
     GUNICORN_WORKERS=2 \
     GUNICORN_THREADS=4 \
     GUNICORN_TIMEOUT=3600 \
