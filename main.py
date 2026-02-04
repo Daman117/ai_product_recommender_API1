@@ -192,7 +192,15 @@ if os.getenv('FLASK_ENV') == 'production' or os.getenv('RAILWAY_ENVIRONMENT'):
 else:
     # Development session settings - use filesystem
     init_filesystem_sessions(app)
-
+# MySQL configuration function
+def get_mysql_uri():
+    return (
+        f"mysql+pymysql://{os.getenv('MYSQLUSER')}:"
+        f"{os.getenv('MYSQLPASSWORD')}@"
+        f"{os.getenv('MYSQLHOST')}:"
+        f"{os.getenv('MYSQLPORT')}/"
+        f"{os.getenv('MYSQLDATABASE')}"
+    )
 # Database configuration
 app.config["SQLALCHEMY_DATABASE_URI"] = get_mysql_uri()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
