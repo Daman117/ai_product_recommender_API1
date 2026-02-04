@@ -1,0 +1,13 @@
+--- Google API Key Tester CLI Output ---
+Starting API Key Test Session...
+
+--- Testing Key: GOOGLE_API_KEY ---
+Initializing model gemini-2.5-flash...
+Sending input: 'Hello, can you hear me? Answer with 'YES'.'
+Response Received: 'YES'
+SUCCESS: GOOGLE_API_KEY is working correctly.
+
+--- Testing Key: GOOGLE_API_KEY1 ---
+Initializing model gemini-2.5-pro...
+Sending input: 'Hello, can you hear me? Answer with 'YES'.'
+FAIL: GOOGLE_API_KEY1 failed. Error: Error calling model 'gemini-2.5-pro' (INVALID_ARGUMENT): 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key expired. Please renew the API key.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.ErrorInfo', 'reason': 'API_KEY_INVALID', 'domain': 'googleapis.com', 'metadata': {'service': 'generativelanguage.googleapis.com'}}, {'@type': 'type.googleapis.com/google.rpc.LocalizedMessage', 'locale': 'en-US', 'message': 'API key expired. Please renew the API key.'}]}}

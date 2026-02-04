@@ -1,0 +1,81 @@
+# =============================================================================
+# AIPR Backend - Docker Ignore
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+
+# Virtual environment
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment files (use docker-compose env instead)
+.env
+.env.*
+!.env.example
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+*.test.py
+
+# Logs
+*.log
+logs/
+logs.*.log
+
+# Local data (will be mounted as volumes)
+flask_session/
+chroma_data/
+vector_store_data/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Instance folder
+instance/
+
+# Profiler data
+profiler/
+
+# Claude/Gemini config
+.claude/
+
+# Large data files
+*.csv
+*.json.bak
+
+# Scripts not needed in container
+scripts/
+
+# Monitoring (optional in container)
+monitoring/
+
+# Product specifications (mounted as volume)
+PRODUCT_SPECIFICATIONS/
